@@ -29,6 +29,8 @@ def num_combinations(current_adapter: int, list_remainder: Tuple[int]) -> int:
     for i, adapter in enumerate(list_remainder):
         if adapter - current_adapter < 4:
             combinations += num_combinations(adapter, list_remainder[i + 1:])
+        else:
+            break
     return combinations
 
 
