@@ -1,32 +1,46 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Optional, Set, TextIO, Tuple
+from enum import Enum
+from typing import List, Optional, Set, TextIO
 
 INPUT = "input"
-EMPTY = "L"
-FULL = "#"
 
 NEIGHBOUR_VECTORS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 
-class Grid:
-    def __init__(self, fin: TextIO, strict_adjacency: bool, num_occupied_to_move: int) -> None:
-        self.grid = [list(line.strip()) for line in fin]
+class SeatStatus(Enum):
+    EMPTY = "L"
+    FULL = "#"
+    FLOOR = "."
+
+
+class Cell:
+    def __init__(self, status: str, x: int, y: int, strict_adjacency: bool) -> None:
+        self.status = SeatStatus(status)
+        self.x = x
+        self.y = y
         self.strict_adjacency = strict_adjacency
-        self.num_occupied_to_move = num_occupied_to_move
+        self.neighbours: List[Cell] = []
 
-        self.could_change: Set[Tuple[int, int]] = set()
-        for y in range(len(self.grid)):
-            for x in range(len(self.grid[y])):
-                self.could_change.add((x, y))
+    @property
+    def is_empty(self) -> bool:
+        return self.status == SeatStatus.EMPTY
 
-    def safe_get_point(self, x: int, y: int) -> Optional[str]:
-        if 0 <= y < len(self.grid):
-            if 0 <= x < len(self.grid[y]):
-                return self.grid[y][x]
-        return None
+    @property
+    def is_full(self) -> bool:
+        return self.status == SeatStatus.FULL
 
-    def neighbours(self, x: int, y: int) -> Iterable[Tuple[str, int, int]]:
+    @property
+    def is_floor(self) -> bool:
+        return self.status == SeatStatus.FLOOR
+
+    def toggle(self) -> None:
+        if self.is_full:
+            self.status = SeatStatus.EMPTY
+        else:
+            self.status = SeatStatus.FULL
+
+    def compute_neighbours(self, grid: Grid) -> None:
         for x_vector, y_vector in NEIGHBOUR_VECTORS:
             x_offset = 0
             y_offset = 0
@@ -34,40 +48,63 @@ class Grid:
                 x_offset += x_vector
                 y_offset += y_vector
 
-                point = self.safe_get_point(x + x_offset, y + y_offset)
+                point = grid.safe_get_point(self.x + x_offset, self.y + y_offset)
                 if point is None:
                     break
-                if point != '.':
-                    yield point, x + x_offset, y + y_offset
+                if not point.is_floor:
+                    self.neighbours.append(point)
                     break
                 if self.strict_adjacency:
                     break
 
+    def __str__(self) -> str:
+        return str(self.status.value)
+
+
+class Grid:
+    def __init__(self, fin: TextIO, strict_adjacency: bool, num_occupied_to_move: int) -> None:
+        self.grid = [[Cell(val, x, y, strict_adjacency) for x, val in enumerate(line.strip())] for y, line in enumerate(fin)]
+        self.strict_adjacency = strict_adjacency
+        self.num_occupied_to_move = num_occupied_to_move
+
+        self.could_change = set()
+        for y in range(len(self.grid)):
+            for x in range(len(self.grid[y])):
+                if not self.grid[y][x].is_floor:
+                    self.grid[y][x].compute_neighbours(self)
+
+                    self.could_change.add(self.grid[y][x])
+
+    def safe_get_point(self, x: int, y: int) -> Optional[Cell]:
+        if 0 <= y < len(self.grid):
+            if 0 <= x < len(self.grid[y]):
+                return self.grid[y][x]
+        return None
+
     def step(self) -> bool:
-        changes: List[Tuple[str, int, int]] = []
-        new_could_change: Set[Tuple[int, int]] = set()
-        for (x, y) in self.could_change:
-            point = self.grid[y][x]
-            neighbours = list(self.neighbours(x, y))
-            if point == EMPTY and not any(p == FULL for p, nx, ny in neighbours):
-                changes.append((FULL, x, y))
-            elif point == FULL and sum(p == FULL for p, nx, ny in neighbours) >= self.num_occupied_to_move:
-                changes.append((EMPTY, x, y))
+        changes: List[Cell] = []
+        new_could_change: Set[Cell] = set()
+        for point in self.could_change:
+            neighbours = point.neighbours
+            if point.is_empty and not any(p.is_full for p in neighbours):
+                changes.append(point)
+            elif point.is_full and sum(p.is_full for p in neighbours) >= self.num_occupied_to_move:
+                changes.append(point)
             else:
                 continue
-            new_could_change.update((x, y) for p, x, y in neighbours)
-            new_could_change.add((x, y))
+            new_could_change.update(neighbours)
+            new_could_change.add(point)
 
         self.could_change = new_could_change
-        for update, x, y in changes:
-            self.grid[y][x] = update
+        for update in changes:
+            update.toggle()
         return len(changes) > 0
 
     def num_occupied(self) -> int:
-        return sum(p == FULL for row in self.grid for p in row)
+        return sum(p.is_full for row in self.grid for p in row)
 
     def __str__(self) -> str:
-        return "\n".join("".join(row) for row in self.grid) + "\n"
+        return "\n".join("".join(str(x) for x in row) for row in self.grid) + "\n"
 
 
 def main() -> None:
