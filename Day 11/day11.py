@@ -15,11 +15,10 @@ class SeatStatus(Enum):
 
 
 class Cell:
-    def __init__(self, status: str, x: int, y: int, strict_adjacency: bool) -> None:
+    def __init__(self, status: str, x: int, y: int) -> None:
         self.status = SeatStatus(status)
         self.x = x
         self.y = y
-        self.strict_adjacency = strict_adjacency
         self.neighbours: List[Cell] = []
 
     @property
@@ -40,7 +39,7 @@ class Cell:
         else:
             self.status = SeatStatus.FULL
 
-    def compute_neighbours(self, grid: Grid) -> None:
+    def compute_neighbours(self, grid: Grid, strict_adjacency: bool) -> None:
         for x_vector, y_vector in NEIGHBOUR_VECTORS:
             x_offset = 0
             y_offset = 0
@@ -54,7 +53,7 @@ class Cell:
                 if not point.is_floor:
                     self.neighbours.append(point)
                     break
-                if self.strict_adjacency:
+                if strict_adjacency:
                     break
 
     def __str__(self) -> str:
@@ -63,15 +62,14 @@ class Cell:
 
 class Grid:
     def __init__(self, fin: TextIO, strict_adjacency: bool, num_occupied_to_move: int) -> None:
-        self.grid = [[Cell(val, x, y, strict_adjacency) for x, val in enumerate(line.strip())] for y, line in enumerate(fin)]
-        self.strict_adjacency = strict_adjacency
+        self.grid = [[Cell(val, x, y) for x, val in enumerate(line.strip())] for y, line in enumerate(fin)]
         self.num_occupied_to_move = num_occupied_to_move
 
         self.could_change = set()
         for y in range(len(self.grid)):
             for x in range(len(self.grid[y])):
                 if not self.grid[y][x].is_floor:
-                    self.grid[y][x].compute_neighbours(self)
+                    self.grid[y][x].compute_neighbours(self, strict_adjacency)
 
                     self.could_change.add(self.grid[y][x])
 
