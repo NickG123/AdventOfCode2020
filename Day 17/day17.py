@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, List, Set, TextIO
+from typing import Iterable, List, Set, TextIO, Tuple
 
 INPUT = "input"
 
@@ -13,20 +12,26 @@ class CubeStatus(Enum):
     INACTIVE = "."
 
 
-@dataclass(order=True, frozen=True)
-class Position:
-    x: int
-    y: int
-    z: int
+Position = Tuple[int, ...]
+
+
+def compute_position_offsets(dimension: int) -> Iterable[Position]:
+    if dimension == 0:
+        yield ()
+    else:
+        for i in range(-1, 2):
+            for subdimension in compute_position_offsets(dimension - 1):
+                yield (i,) + subdimension
 
 
 class Grid:
-    def __init__(self, fin: TextIO) -> None:
+    def __init__(self, fin: TextIO, dimensions: int) -> None:
         self.could_change = set()
         self.grid = defaultdict(lambda: CubeStatus.INACTIVE)
+        self.position_offsets = [offset for offset in compute_position_offsets(dimensions) if not all(o == 0 for o in offset)]
         for y, line in enumerate(fin):
             for x, val in enumerate(line.strip()):
-                pos = Position(x, y, 0)
+                pos = (x, y) + (0,) * (dimensions - 2)
                 self.grid[pos] = CubeStatus(val)
                 self.could_change.add(pos)
                 self.could_change.update(self.neighbours(pos))
@@ -37,12 +42,9 @@ class Grid:
         else:
             self.grid[position] = CubeStatus.ACTIVE
 
-    def neighbours(self, position: Position) -> Iterable[Position]:
-        for x in range(-1, 2):
-            for y in range(-1, 2):
-                for z in range(-1, 2):
-                    if x != 0 or y != 0 or z != 0:
-                        yield Position(x + position.x, y + position.y, z + position.z)
+    def neighbours(self, position: Tuple[int, ...]) -> Iterable[Tuple[int, ...]]:
+        for offset in self.position_offsets:
+            yield tuple(p + o for (p, o) in zip(position, offset))
 
     def step(self) -> None:
         changes: List[Position] = []
@@ -67,23 +69,17 @@ class Grid:
     def num_active(self) -> int:
         return sum(cell_state == CubeStatus.ACTIVE for cell_state in self.grid.values())
 
-    def __str__(self) -> str:
-        min_pos = min(self.grid)
-        max_pos = max(self.grid)
-        result = []
-        for z in range(min_pos.z, max_pos.z + 1):
-            result.append(f"z={z}")
-            for y in range(min_pos.y, max_pos.y + 1):
-                result.append("".join(self.grid[Position(x, y, z)].value for x in range(min_pos.x, max_pos.x + 1)))
-        return "\n".join(result) + "\n"
-
 
 def main() -> None:
     with open(INPUT, "r") as fin:
-        grid = Grid(fin)
+        grid_3 = Grid(fin, 3)
+    with open(INPUT, "r") as fin:
+        grid_4 = Grid(fin, 4)
     for i in range(6):
-        grid.step()
-    print(grid.num_active())
+        grid_3.step()
+        grid_4.step()
+    print(grid_3.num_active())
+    print(grid_4.num_active())
 
 
 if __name__ == "__main__":
