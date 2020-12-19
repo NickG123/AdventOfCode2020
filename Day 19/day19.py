@@ -1,6 +1,6 @@
-import re
+import regex as re
 from functools import lru_cache
-from typing import Dict, Pattern, TextIO
+from typing import Any, Dict, TextIO
 
 INPUT = "input"
 
@@ -15,9 +15,15 @@ def read_rules(fin: TextIO) -> Dict[int, str]:
     return result
 
 
-def parse_rule(rule: str, rules: Dict[int, str]) -> Pattern[str]:
+def parse_rule(rule: str, rules: Dict[int, str], part2: bool) -> Any:
     @lru_cache(None)
     def parse_rule_helper(rule: str) -> str:
+        if part2:
+            if rule == "8":
+                return f"{parse_rule_helper('42')}+"
+            if rule == "11":
+                return f"(?P<name>{parse_rule_helper('42')}(?&name)?{parse_rule_helper('31')})"
+
         if rule.startswith('"'):
             return rule.strip('"')
         if "|" in rule:
@@ -34,8 +40,18 @@ def main() -> None:
     with open(INPUT, "r") as fin:
         rules = read_rules(fin)
 
-        rule_0 = parse_rule(rules[0], rules)
-        print(sum(rule_0.fullmatch(line.strip()) is not None for line in fin))
+        p1 = parse_rule(rules[0], rules, False)
+        p2 = parse_rule(rules[0], rules, True)
+        p1_total = 0
+        p2_total = 0
+        for line in fin:
+            if p1.fullmatch(line.strip()):
+                p1_total += 1
+            if p2.fullmatch(line.strip()):
+                p2_total += 1
+
+        print(p1_total)
+        print(p2_total)
 
 
 if __name__ == "__main__":
